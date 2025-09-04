@@ -1,0 +1,232 @@
+import React, { useState, useEffect } from 'react';
+import { ArrowLeft } from 'lucide-react';
+import { db, storage } from '../config/firebase';
+import { collection, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+
+const FirebaseTest = ({ onBack }) => {
+  const [connectionStatus, setConnectionStatus] = useState('Testing...');
+  const [testResults, setTestResults] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [importError, setImportError] = useState(null);
+
+  useEffect(() => {
+    try {
+      testFirebaseConnection();
+    } catch (error) {
+      console.error('Firebase import error:', error);
+      setImportError(error.message);
+      setConnectionStatus('Import Error');
+    }
+  }, []);
+
+  const testFirebaseConnection = async () => {
+    const results = [];
+    
+    try {
+      // Test 1: Check if Firebase config is loaded
+      console.log('Environment variables check:', {
+        apiKey: !!import.meta.env.VITE_FIREBASE_API_KEY,
+        authDomain: !!import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+        projectId: !!import.meta.env.VITE_FIREBASE_PROJECT_ID,
+        storageBucket: !!import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+        messagingSenderId: !!import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+        appId: !!import.meta.env.VITE_FIREBASE_APP_ID
+      });
+
+      if (!import.meta.env.VITE_FIREBASE_API_KEY) {
+        results.push({ test: 'Environment Variables', status: 'FAILED', message: 'Firebase environment variables not found' });
+        setConnectionStatus('Failed - Missing Environment Variables');
+        setTestResults(results);
+        return;
+      }
+      results.push({ test: 'Environment Variables', status: 'PASSED', message: 'Environment variables loaded' });
+
+      // Test 2: Test Firestore connection
+      try {
+        const testCollection = collection(db, 'test');
+        const snapshot = await getDocs(testCollection);
+        results.push({ test: 'Firestore Connection', status: 'PASSED', message: `Connected to Firestore. Found ${snapshot.size} test documents.` });
+      } catch (error) {
+        console.error('Firestore error:', error);
+        results.push({ 
+          test: 'Firestore Connection', 
+          status: 'FAILED', 
+          message: `Error: ${error.message} (Code: ${error.code || 'unknown'})` 
+        });
+      }
+
+      // Test 3: Test Storage connection
+      try {
+        const testRef = ref(storage, 'test/connection-test.txt');
+        const testBlob = new Blob(['Firebase connection test'], { type: 'text/plain' });
+        await uploadBytes(testRef, testBlob);
+        results.push({ test: 'Storage Connection', status: 'PASSED', message: 'Successfully uploaded test file to Storage' });
+      } catch (error) {
+        console.error('Storage error:', error);
+        results.push({ 
+          test: 'Storage Connection', 
+          status: 'FAILED', 
+          message: `Error: ${error.message} (Code: ${error.code || 'unknown'})` 
+        });
+      }
+
+      // Test 4: Test adding a document to Firestore
+      try {
+        const testDoc = {
+          message: 'Firebase connection test',
+          timestamp: serverTimestamp(),
+          testId: Date.now()
+        };
+        const docRef = await addDoc(collection(db, 'test'), testDoc);
+        results.push({ test: 'Write to Firestore', status: 'PASSED', message: `Document added with ID: ${docRef.id}` });
+      } catch (error) {
+        console.error('Firestore write error:', error);
+        results.push({ 
+          test: 'Write to Firestore', 
+          status: 'FAILED', 
+          message: `Error: ${error.message} (Code: ${error.code || 'unknown'})` 
+        });
+      }
+
+      const failedTests = results.filter(r => r.status === 'FAILED');
+      setConnectionStatus(failedTests.length === 0 ? 'Connected Successfully!' : `Failed (${failedTests.length} tests failed)`);
+
+    } catch (error) {
+      results.push({ test: 'General Connection', status: 'FAILED', message: `Unexpected error: ${error.message}` });
+      setConnectionStatus('Connection Failed');
+    }
+
+    setTestResults(results);
+  };
+
+  const runTest = () => {
+    setIsLoading(true);
+    setTestResults([]);
+    setConnectionStatus('Testing...');
+    testFirebaseConnection().finally(() => setIsLoading(false));
+  };
+
+  return (
+    <div className="max-w-2xl mx-auto p-6 bg-white rounded-lg shadow-lg">
+      <div className="flex items-center mb-4">
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="mr-4 p-2 hover:bg-gray-100 rounded-full transition-colors"
+          >
+            <ArrowLeft className="w-6 h-6 text-gray-600" />
+          </button>
+        )}
+        <h2 className="text-2xl font-bold">Firebase Connection Test</h2>
+      </div>
+      
+      <div className="mb-6">
+        <div className={`p-4 rounded-lg ${
+          connectionStatus.includes('Successfully') 
+            ? 'bg-green-100 text-green-800' 
+            : connectionStatus.includes('Failed') || connectionStatus.includes('Error')
+            ? 'bg-red-100 text-red-800' 
+            : 'bg-yellow-100 text-yellow-800'
+        }`}>
+          <strong>Status:</strong> {connectionStatus}
+        </div>
+        {importError && (
+          <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <strong>Import Error:</strong> {importError}
+          </div>
+        )}
+      </div>
+
+      <button
+        onClick={runTest}
+        disabled={isLoading}
+        className="mb-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg"
+      >
+        {isLoading ? 'Testing...' : 'Run Connection Test'}
+      </button>
+
+      {testResults.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-lg font-semibold">Test Results:</h3>
+          {testResults.map((result, index) => (
+            <div key={index} className={`p-3 rounded border-l-4 ${
+              result.status === 'PASSED' 
+                ? 'bg-green-50 border-green-500' 
+                : 'bg-red-50 border-red-500'
+            }`}>
+              <div className="flex justify-between items-start">
+                <span className="font-medium">{result.test}</span>
+                <span className={`px-2 py-1 rounded text-sm ${
+                  result.status === 'PASSED' 
+                    ? 'bg-green-200 text-green-800' 
+                    : 'bg-red-200 text-red-800'
+                }`}>
+                  {result.status}
+                </span>
+              </div>
+              <p className="text-sm text-gray-600 mt-1">{result.message}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!import.meta.env.VITE_FIREBASE_API_KEY && (
+        <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <h4 className="font-semibold text-yellow-800 mb-2">Setup Required:</h4>
+          <p className="text-yellow-700 text-sm mb-2">
+            You need to create a <code>.env</code> file in your project root with your Firebase configuration.
+          </p>
+          <div className="bg-gray-100 p-3 rounded text-sm font-mono">
+            <div>VITE_FIREBASE_API_KEY=your_api_key</div>
+            <div>VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com</div>
+            <div>VITE_FIREBASE_PROJECT_ID=your_project_id</div>
+            <div>VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com</div>
+            <div>VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id</div>
+            <div>VITE_FIREBASE_APP_ID=your_app_id</div>
+          </div>
+        </div>
+      )}
+
+      {testResults.some(r => r.status === 'FAILED') && (
+        <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <h4 className="font-semibold text-red-800 mb-2">Troubleshooting Steps:</h4>
+          <div className="text-red-700 text-sm space-y-2">
+            <div>
+              <strong>1. Enable Firestore Database:</strong>
+              <ul className="ml-4 mt-1 list-disc">
+                <li>Go to <a href="https://console.firebase.google.com" target="_blank" rel="noopener noreferrer" className="underline">Firebase Console</a></li>
+                <li>Select your project → Firestore Database → Create database</li>
+                <li>Choose "Start in test mode" (allows read/write for 30 days)</li>
+              </ul>
+            </div>
+            <div>
+              <strong>2. Enable Firebase Storage:</strong>
+              <ul className="ml-4 mt-1 list-disc">
+                <li>Go to Storage → Get started</li>
+                <li>Choose "Start in test mode"</li>
+                <li>Select a location for your storage bucket</li>
+              </ul>
+            </div>
+            <div>
+              <strong>3. Check Security Rules:</strong>
+              <ul className="ml-4 mt-1 list-disc">
+                <li>Firestore: Rules → allow read, write: if true;</li>
+                <li>Storage: Rules → allow read, write: if true;</li>
+              </ul>
+            </div>
+            <div>
+              <strong>4. Verify Project Configuration:</strong>
+              <ul className="ml-4 mt-1 list-disc">
+                <li>Make sure your .env.local values match your Firebase project</li>
+                <li>Check that the project ID is correct</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default FirebaseTest;

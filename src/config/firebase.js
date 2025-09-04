@@ -22,3 +22,7 @@ const analytics = getAnalytics(app);
 // Initialize Firestore and Storage
 export const db = getFirestore(app);
 export const storage = getStorage(app);
+
+// Initialize Auth
+import { getAuth } from 'firebase/auth';
+export const auth = getAuth(app);
