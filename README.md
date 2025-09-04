@@ -80,3 +80,35 @@ This project uses:
 - Tailwind CSS for styling
 - Firebase for backend services
 - Google Maps JavaScript API for location services
+
+## Contributing
+
+1. Fork the repository
+2. Create a new branch for your feature: `git checkout -b feature/your-feature-name`
+3. Copy `.env.example` to `.env` and fill in your API keys
+4. Install dependencies: `npm install`
+5. Start the development server: `npm run dev`
+6. Make your changes and commit them: `git commit -m 'Add some feature'`
+7. Push to your fork: `git push origin feature/your-feature-name`
+8. Create a Pull Request
+
+## Available Scripts
+
+- `npm run dev` - Start the development server
+- `npm run build` - Build the production version
+- `npm run preview` - Preview the production build locally
+- `npm run lint` - Run ESLint to check code quality
+
+## Project Structure
+
+- `/src` - Source code
+  - `/assets` - Static assets like images
+  - `/components` - Reusable React components
+  - `/config` - Configuration files (Firebase setup)
+  - `/pages` - Page components
+  - `/services` - Service layer for API calls
+- `/public` - Public static files
+
+## License
+
+This project is MIT licensed. See the LICENSE file for details.
